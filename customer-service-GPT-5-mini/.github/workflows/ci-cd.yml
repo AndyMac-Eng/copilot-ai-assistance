@@ -1,0 +1,39 @@
+name: CI/CD
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Restore
+        run: dotnet restore ./src/CustomerService/CustomerService.csproj
+      - name: Build
+        run: dotnet build -c Release --no-restore ./src/CustomerService/CustomerService.csproj
+      - name: Test
+        run: echo "No tests configured"
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Publish
+        run: dotnet publish ./src/CustomerService/CustomerService.csproj -c Release -o out
+      - name: Build Docker Image
+        run: |
+          docker build -t ghcr.io/${{ github.repository }}/customer-service:latest -f ./src/CustomerService/Dockerfile ./src/CustomerService
+      - name: Push Image
+        run: echo "Image push step - configure GHCR or Azure Container Registry credentials"
