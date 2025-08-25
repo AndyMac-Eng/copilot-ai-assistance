@@ -1,0 +1,6 @@
+name: customer-microservice
+services:
+  customer-api:
+    project: ../CustomerMicroservice
+    language: dotnet
+    host: function
