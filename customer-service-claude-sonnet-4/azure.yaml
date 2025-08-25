@@ -1,0 +1,34 @@
+name: customer-service
+metadata:
+  template: customer-service-template
+infra:
+  provider: bicep
+  path: infra
+
+services:
+  customer-api:
+    project: ./src
+    language: dotnet
+    host: function
+
+pipeline:
+  provider: github
+
+hooks:
+  postprovision:
+    posix:
+      shell: sh
+      run: |
+        echo "Configuring API Management..."
+        az deployment group create \
+          --resource-group $AZURE_RESOURCE_GROUP_NAME \
+          --template-file ./infra/apim.bicep \
+          --parameters apimServiceName=$AZURE_APIM_NAME functionAppName=$AZURE_FUNCTION_APP_NAME environmentName=$AZURE_ENV_NAME
+    windows:
+      shell: pwsh
+      run: |
+        Write-Host "Configuring API Management..."
+        az deployment group create `
+          --resource-group $env:AZURE_RESOURCE_GROUP_NAME `
+          --template-file ./infra/apim.bicep `
+          --parameters apimServiceName=$env:AZURE_APIM_NAME functionAppName=$env:AZURE_FUNCTION_APP_NAME environmentName=$env:AZURE_ENV_NAME

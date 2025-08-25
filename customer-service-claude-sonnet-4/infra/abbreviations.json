@@ -1,0 +1,13 @@
+{
+  "resourceGroup": "rg-",
+  "keyVault": "kv-",
+  "cosmosDBAccount": "cosmos-",
+  "webFunctionApp": "func-",
+  "apiManagement": "apim-",
+  "applicationInsights": "appi-",
+  "logAnalyticsWorkspace": "log-",
+  "appServicePlan": "asp-",
+  "managedIdentity": "id-",
+  "virtualNetwork": "vnet-",
+  "storageAccount": "st"
+}

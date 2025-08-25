@@ -1,0 +1,28 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+    "CosmosDb__ConnectionString": "AccountEndpoint=https://localhost:8081/;AccountKey=C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==",
+    "CosmosDb__DatabaseName": "CustomerService",
+    "CosmosDb__ContainerName": "Customers",
+    "CosmosDb__PartitionKeyPath": "/partitionKey",
+    "Jwt__SecretKey": "your-super-secret-jwt-key-that-should-be-at-least-32-characters-long-for-security",
+    "Jwt__Issuer": "CustomerService",
+    "Jwt__Audience": "CustomerService.Client",
+    "Jwt__ExpirationMinutes": "60",
+    "Jwt__RefreshTokenExpirationDays": "7",
+    "AzureAdB2C__Instance": "https://your-tenant.b2clogin.com",
+    "AzureAdB2C__Domain": "your-tenant.onmicrosoft.com",
+    "AzureAdB2C__TenantId": "your-tenant-id",
+    "AzureAdB2C__ClientId": "your-client-id",
+    "AzureAdB2C__ClientSecret": "your-client-secret",
+    "AzureAdB2C__SignUpSignInPolicyId": "B2C_1_signupsignin",
+    "ApplicationInsights__ConnectionString": "",
+    "ApplicationInsights__InstrumentationKey": "",
+    "KeyVault__VaultUri": "https://your-keyvault.vault.azure.net/",
+    "KeyVault__TenantId": "your-tenant-id",
+    "KeyVault__ClientId": "your-client-id",
+    "KeyVault__ClientSecret": "your-client-secret"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+    "FUNCTIONS_EXTENSION_VERSION": "~4",
+    "CosmosDb__ConnectionString": "AccountEndpoint=https://localhost:8081/;AccountKey=C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==",
+    "CosmosDb__DatabaseName": "CustomerDB",
+    "CosmosDb__ContainerName": "Customers",
+    "Jwt__SecretKey": "your-super-secret-jwt-key-that-should-be-at-least-32-characters-long",
+    "Jwt__Issuer": "CustomerService",
+    "Jwt__Audience": "CustomerService.Users",
+    "Jwt__ExpiryMinutes": "60",
+    "AZURE_CLIENT_ID": "",
+    "AZURE_CLIENT_SECRET": "",
+    "AZURE_TENANT_ID": "",
+    "ApplicationInsights__ConnectionString": ""
+  },
+  "Host": {
+    "LocalHttpPort": 7071,
+    "CORS": "*",
+    "CORSCredentials": false
+  }
+}
