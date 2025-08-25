@@ -13,9 +13,8 @@ Create a new Customer Microservice with functionality:
 - Create new customer accounts
 - Perform login and logout of individual customers
 - Fetch account information for the logged-in customer
-
+(End of transcript)
 Additional requirements:
-
 - Provide a customer account schema
 - Recommend Azure storage solution and create configuration items
 - Microservice accessible via a specific domain with requests terminated by API Management supporting authentication
@@ -24,9 +23,6 @@ Additional requirements:
 - Provide reasoning for design choices
 - Do not actually create Azure resources — only produce IaC files
 - Emphasize security and CI/CD best practices; include Dockerfile
-
----
-
 ## High-level plan followed
 
 1. Create .NET isolated worker project skeleton and core files (model, repository, functions).
@@ -42,7 +38,6 @@ Additional requirements:
 
 - Create new customer accounts — Done (Register function).
 - Perform login and logout — Done (Login, Logout functions).
-- Fetch account information for logged-in customer — Done (GetProfile function).
 - Customer account schema — Done (`Customer` model).
 - Recommend Azure storage & config — Done (Cosmos DB recommended; `appsettings.json` and env vars added; Key Vault placeholders).
 - API Management IaC and mapping — Done (APIM Bicep + API mapping and policy placeholder).
@@ -50,7 +45,6 @@ Additional requirements:
 - Provide IaC only — Done (Bicep files provided, no resources created).
 - Emphasize security & CI/CD and include Dockerfile — Done (README, Dockerfile, GitHub Actions skeleton).
 
----
 
 ## Actions performed (file-level)
 
@@ -58,7 +52,6 @@ Created/edited the following files (paths relative to repo root):
 
 - `src/CustomerService/CustomerService.csproj` — project configuration (final target: `net7.0` for prototype; notes included).
 - `src/CustomerService/Program.cs` — host and DI configuration, Cosmos client registration (supports managed identity).
-- `src/CustomerService/Models/Customer.cs` — customer schema (Id, Email, PasswordHash, PasswordSalt, FullName, CreatedAt, LastLoginAt, IsActive).
 - `src/CustomerService/Services/ICustomerRepository.cs` — repository interface.
 - `src/CustomerService/Services/CosmosCustomerRepository.cs` — Cosmos DB implementation, PBKDF2 password verification, CRUD operations.
 - `src/CustomerService/Services/PasswordHelper.cs` — helper for hashing password (PBKDF2).
@@ -92,7 +85,6 @@ Created/edited the following files (paths relative to repo root):
   - Use Azure Key Vault for secrets (e.g., Jwt signing key if used) and assign a user-assigned Managed Identity to the Function App for secure access.
   - The Bicep template includes placeholders for Key Vault and Managed Identity; CI/CD should assign roles and policies.
 
-- Password handling
   - Passwords hashed using PBKDF2 (Rfc2898DeriveBytes) with 100k iterations and 32-byte salt & hash.
   - Production recommendation: delegate auth to AAD B2C or a hosted identity provider.
 
@@ -121,7 +113,6 @@ Warnings and notes:
 ## APIM policy injection note
 
 - Bicep requires compile-time constants for policy XML. The Bicep template contains a placeholder policy and `infra/apim/policy.xml` exists as the policy to deploy. CI/CD should set the actual policy using the APIM REST API or `az apim api policy` commands during deployment.
-
 ---
 
 ## Security checklist (recommended to implement)
@@ -129,7 +120,6 @@ Warnings and notes:
 - [ ] Replace prototype symmetric JWT with Azure AD / B2C tokens.
 - [ ] Store secrets (Jwt key, connection strings) in Key Vault; use Key Vault references in App Service settings or DefaultAzureCredential.
 - [ ] Assign Managed Identity to Function App and grant it required roles/permissions for Cosmos DB and Key Vault.
-- [ ] Enable diagnostic logs and Azure Monitor/Log Analytics for the Function App and APIM.
 - [ ] Ensure image scanning in CI and vulnerability patching for runtime dependencies.
 
 ---
@@ -137,9 +127,7 @@ Warnings and notes:
 ## Next steps (optionally I can perform)
 
 - Convert project to net8.0 and resolve worker SDK compatibility for full requested target.
-- Replace JwtHelpers with a full Azure AD B2C integration and configure APIM validate-jwt end-to-end.
 - Add unit tests (PasswordHelper + repository mocks) and an integration test with Cosmos DB emulator.
-- Extend Bicep templates to perform role assignments (Managed Identity to Key Vault & Cosmos) and APIM custom domain/certificate wiring.
 
 ---
 

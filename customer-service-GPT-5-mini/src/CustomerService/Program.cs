@@ -1,35 +1,46 @@
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Azure.Functions.Worker.Configuration;
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Builder;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Azure.Identity;
 using Microsoft.Azure.Cosmos;
 using CustomerService.Services;
 
-var host = new HostBuilder()
-    .ConfigureFunctionsWorkerDefaults()
-    .ConfigureAppConfiguration((ctx, cfg) =>
+namespace CustomerService
+{
+    public class Program
     {
-        cfg.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
-           .AddEnvironmentVariables();
-    })
-    .ConfigureServices((context, services) =>
-    {
-        var configuration = context.Configuration;
-
-        // Configure Cosmos client: prefer Managed Identity (DefaultAzureCredential) when UseManagedIdentity=true
-        var useManagedIdentity = configuration.GetValue<bool>("Cosmos:UseManagedIdentity");
-        if (useManagedIdentity)
+        public static void Main(string[] args)
         {
-            services.AddSingleton(s => new CosmosClient(configuration["Cosmos:AccountEndpoint"], new DefaultAzureCredential()));
-        }
-        else
-        {
-            services.AddSingleton(s => new CosmosClient(configuration["Cosmos:ConnectionString"]));
-        }
+            var builder = FunctionsApplication.CreateBuilder(args);
 
-        services.AddSingleton<ICustomerRepository, CosmosCustomerRepository>();
-    })
-    .Build();
+            builder.Configuration
+                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+                .AddEnvironmentVariables();
 
-host.Run();
+            var configuration = builder.Configuration;
+
+            var useManagedIdentity = configuration.GetValue<bool>("Cosmos:UseManagedIdentity");
+            if (useManagedIdentity)
+            {
+                builder.Services.AddSingleton(s => new CosmosClient(configuration["Cosmos:AccountEndpoint"], new DefaultAzureCredential()));
+            }
+            else
+            {
+                builder.Services.AddSingleton(s => new CosmosClient(configuration["Cosmos:ConnectionString"]));
+            }
+
+            builder.Services.AddSingleton<ICustomerRepository, CosmosCustomerRepository>();
+
+            // Integrate with ASP.NET Core style functions web application
+            builder.ConfigureFunctionsWebApplication();
+
+            // Optional: Application Insights integration for worker service
+            // builder.Services.AddApplicationInsightsTelemetryWorkerService();
+            // builder.Services.ConfigureFunctionsApplicationInsights();
+
+            builder.Build().Run();
+        }
+    }
+}
