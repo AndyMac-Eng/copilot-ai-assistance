@@ -1,0 +1,87 @@
+name: customer-service-ci
+
+on:
+  push:
+    paths:
+      - 'src/CustomerService/**'
+      - 'infra/**'
+      - '.github/workflows/customer-service-ci.yml'
+    branches: [ main ]
+  pull_request:
+    paths:
+      - 'src/CustomerService/**'
+      - 'infra/**'
+    branches: [ main ]
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+env:
+  IMAGE_NAME: customer-service
+  REGISTRY_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+  REGISTRY_NAME: ${{ secrets.ACR_NAME }}
+  RESOURCE_GROUP: ${{ secrets.AZ_RESOURCE_GROUP }}
+  BICEP_FILE: infra/main.bicep
+  PARAMETERS_FILE: infra/main.parameters.json
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Restore
+        run: dotnet restore src/CustomerService/CustomerService.csproj
+      - name: Build
+        run: dotnet build --configuration Release --no-restore src/CustomerService/CustomerService.csproj tests/CustomerService.Tests/CustomerService.Tests.csproj
+      - name: Publish
+        run: dotnet publish src/CustomerService/CustomerService.csproj -c Release -o publish /p:UseAppHost=false
+      - name: Unit Tests
+        run: dotnet test tests/CustomerService.Tests/CustomerService.Tests.csproj --no-build --verbosity normal
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Azure CLI - Lint Bicep
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            az bicep build --file $BICEP_FILE
+      - name: Build image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: ${{ env.IMAGE_NAME }}:ci-${{ github.sha }}
+  container-publish:
+    needs: build-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: ACR login
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            az acr login --name ${{ env.REGISTRY_NAME }}
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ env.REGISTRY_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:latest,${{ env.REGISTRY_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+      - name: Output image
+        run: echo "Published image $REGISTRY_LOGIN_SERVER/$IMAGE_NAME:${{ github.sha }}"

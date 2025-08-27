@@ -1,0 +1,12 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environment": { "value": "dev" },
+    "apimPublisherEmail": { "value": "owner@example.com" },
+    "apimPublisherName": { "value": "Owner" },
+    "apiCustomDomain": { "value": "api.example.com" },
+    "apiCustomDomainCertId": { "value": "/subscriptions/<subId>/resourceGroups/<rg>/providers/Microsoft.KeyVault/vaults/<kv>/secrets/<certSecretName>" },
+    "jwtSigningKey": { "value": "local-dev-insecure-key-change" }
+  }
+}
