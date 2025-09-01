@@ -1,4 +1,5 @@
 using CustomerService.Storage;
+using CustomerService.OAuth;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Configuration;
@@ -19,9 +20,16 @@ var host = new HostBuilder()
     {
         services.AddApplicationInsightsTelemetryWorkerService();
         services.AddLogging(lb => lb.AddSerilog());
-        services.AddSingleton<ICustomerRepository, CosmosCustomerRepository>();
-        services.AddSingleton<IRefreshTokenRepository, CosmosRefreshTokenRepository>();
-        services.AddSingleton<TokenService>();
+    services.AddSingleton<ICustomerRepository, CosmosCustomerRepository>();
+    services.AddSingleton<IRefreshTokenRepository, CosmosRefreshTokenRepository>();
+    services.AddSingleton<IExternalIdentityRepository, CosmosExternalIdentityRepository>();
+    services.AddSingleton<TokenService>();
+    // OAuth integration
+    services.AddSingleton<IOAuthStateStore, InMemoryOAuthStateStore>();
+    services.AddSingleton<IOAuthProvider, CustomerService.OAuth.Providers.AppleOAuthProvider>();
+    services.AddSingleton<IOAuthProvider, CustomerService.OAuth.Providers.MicrosoftOAuthProvider>();
+    services.AddSingleton<IOAuthProvider, CustomerService.OAuth.Providers.LinkedInOAuthProvider>();
+    services.AddSingleton<OAuthService>();
     })
     .ConfigureFunctionsWorkerDefaults()
     .Build();

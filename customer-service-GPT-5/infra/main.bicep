@@ -40,6 +40,7 @@ var apimName = toLower('${namePrefix}-apim')
 var appPlanName = '${namePrefix}-plan'
 var functionAppName = toLower('${namePrefix}-func')
 var containerRegistryName = toLower(replace('${namePrefix}acr','-',''))
+var externalIdentitiesContainerName = 'externalIdentities'
 
 // Tags
 var commonTags = {
@@ -150,6 +151,43 @@ resource cosmosContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/con
   }
 }
 
+// External identities container
+resource cosmosExternalIdentities 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-02-15' = {
+  name: externalIdentitiesContainerName
+  parent: cosmosDb
+  properties: {
+    resource: {
+      id: externalIdentitiesContainerName
+      partitionKey: {
+        paths: [ '/tenantId' ]
+        kind: 'Hash'
+      }
+      indexingPolicy: {
+        indexingMode: 'consistent'
+        automatic: true
+        includedPaths: [ { path: '/*' } ]
+        excludedPaths: [ { path: '/"_etag"/?' } ]
+      }
+      uniqueKeyPolicy: {
+        uniqueKeys: [
+          {
+            paths: [ '/tenantId', '/provider', '/providerSubject' ]
+          }
+        ]
+      }
+      conflictResolutionPolicy: {
+        mode: 'LastWriterWins'
+        conflictResolutionPath: '/_ts'
+      }
+    }
+    options: {
+      autoscaleSettings: {
+        maxThroughput: cosmosMaxThroughput
+      }
+    }
+  }
+}
+
 resource kv 'Microsoft.KeyVault/vaults@2023-07-01' = {
   name: keyVaultName
   location: location
@@ -233,6 +271,18 @@ resource func 'Microsoft.Web/sites@2023-12-01' = {
           name: 'JWT_SIGNING_KEY__KV_SECRET_NAME'
           value: 'jwt-signing-key'
         }
+        {
+          name: 'COSMOS_EXTERNAL_CONTAINER'
+          value: externalIdentitiesContainerName
+        }
+        {
+          name: 'OAUTH_REDIRECT_BASE_URL'
+          value: 'https://${apiCustomDomain}'
+        }
+        {
+            name: 'OAUTH_IDENTITY_CAP'
+            value: '10'
+        }
       ]
     }
     httpsOnly: true
@@ -304,6 +354,43 @@ resource opMe 'Microsoft.ApiManagement/service/apis/operations@2023-05-01-previe
     displayName: 'Get Me'
     method: 'GET'
     urlTemplate: '/customers/me'
+    responses: []
+  }
+}
+
+// OAuth operations
+resource opOAuthStart 'Microsoft.ApiManagement/service/apis/operations@2023-05-01-preview' = {
+  name: 'oauthStart'
+  parent: apimApi
+  properties: {
+    displayName: 'OAuth Start'
+    method: 'GET'
+    urlTemplate: '/oauth/{provider}/start'
+    templateParameters: [
+      {
+        name: 'provider'
+        required: true
+        type: 'string'
+      }
+    ]
+    responses: []
+  }
+}
+
+resource opOAuthCallback 'Microsoft.ApiManagement/service/apis/operations@2023-05-01-preview' = {
+  name: 'oauthCallback'
+  parent: apimApi
+  properties: {
+    displayName: 'OAuth Callback'
+    method: 'GET'
+    urlTemplate: '/oauth/{provider}/callback'
+    templateParameters: [
+      {
+        name: 'provider'
+        required: true
+        type: 'string'
+      }
+    ]
     responses: []
   }
 }
