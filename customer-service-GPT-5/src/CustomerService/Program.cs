@@ -10,10 +10,13 @@ using Polly;
 using Polly.Extensions.Http;
 
 var host = new HostBuilder()
-    .ConfigureAppConfiguration(builder =>
+    .ConfigureAppConfiguration((ctx, builder) =>
     {
-        builder.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
-               .AddEnvironmentVariables();
+        builder.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
+        // Load environment specific overrides: Development, Uat, Production
+        var envName = ctx.HostingEnvironment.EnvironmentName;
+        builder.AddJsonFile($"appsettings.{envName}.json", optional: true, reloadOnChange: true);
+        builder.AddEnvironmentVariables();
     })
     .ConfigureServices((ctx, services) =>
     {

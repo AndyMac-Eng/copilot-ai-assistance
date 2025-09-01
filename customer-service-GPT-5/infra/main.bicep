@@ -233,6 +233,10 @@ resource func 'Microsoft.Web/sites@2023-12-01' = {
           name: 'JWT_SIGNING_KEY__KV_SECRET_NAME'
           value: 'jwt-signing-key'
         }
+        {
+          name: 'DOTNET_ENVIRONMENT'
+          value: toLower(environment) == 'dev' ? 'Development' : (toLower(environment) == 'uat' ? 'Uat' : 'Production')
+        }
       ]
     }
     httpsOnly: true
