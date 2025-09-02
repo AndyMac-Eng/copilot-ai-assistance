@@ -14,6 +14,25 @@ param apimPublisherName string
 param apiCustomDomain string
 @description('Certificate resource Id or Key Vault secret Id for custom domain TLS cert')
 param apiCustomDomainCertId string
+@description('SKU for customer-facing APIM (e.g. Consumption, Developer, Premium)')
+@allowed([
+  'Consumption'
+  'Developer'
+  'Premium'
+])
+param customerApimSkuName string = (environment == 'prod' ? 'Developer' : 'Consumption')
+@description('Admin (internal) APIM SKU (Developer for non-prod, Premium for prod)')
+@allowed([
+  'Developer'
+  'Premium'
+])
+param adminApimSkuName string = (environment == 'prod' ? 'Premium' : 'Developer')
+@description('Capacity for admin APIM (1 for Developer; Premium supports >1)')
+param adminApimSkuCapacity int = 1
+@description('VNet address space for internal resources (Option A)')
+param vnetAddressSpace string = '10.0.0.0/16'
+@description('Subnet prefix for Admin APIM')
+param adminApimSubnetPrefix string = '10.0.0.0/24'
 @description('Cosmos DB account consistency level')
 @allowed([
   'Eventual'
@@ -37,9 +56,13 @@ var namePrefix = '${systemName}-${environment}'
 var cosmosAccountName = toLower(replace('${namePrefix}-cosmos','_',''))
 var keyVaultName = take(toLower(replace('${namePrefix}-kv','_','')), 24)
 var apimName = toLower('${namePrefix}-apim')
+var adminApimName = toLower('${namePrefix}-apim-admin')
 var appPlanName = '${namePrefix}-plan'
 var functionAppName = toLower('${namePrefix}-func')
 var containerRegistryName = toLower(replace('${namePrefix}acr','-',''))
+var vnetName = '${namePrefix}-vnet'
+var adminApimSubnetName = 'apim-admin-snet'
+var adminApimSubnetId = resourceId('Microsoft.Network/virtualNetworks/subnets', vnetName, adminApimSubnetName)
 
 // Tags
 var commonTags = {
@@ -68,7 +91,7 @@ resource acr 'Microsoft.ContainerRegistry/registries@2023-06-01-preview' = {
   tags: commonTags
 }
 
-resource cosmos 'Microsoft.DocumentDB/databaseAccounts@2024-02-15' = {
+resource cosmos 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' = {
   name: cosmosAccountName
   location: location
   kind: 'GlobalDocumentDB'
@@ -95,7 +118,7 @@ resource cosmos 'Microsoft.DocumentDB/databaseAccounts@2024-02-15' = {
   tags: commonTags
 }
 
-resource cosmosDb 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024-02-15' = {
+resource cosmosDb 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2023-11-15' = {
   name: 'customersdb'
   parent: cosmos
   properties: {
@@ -106,7 +129,7 @@ resource cosmosDb 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024-02-15
   }
 }
 
-resource cosmosContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-02-15' = {
+resource cosmosContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2023-11-15' = {
   name: 'customers'
   parent: cosmosDb
   properties: {
@@ -244,12 +267,12 @@ resource func 'Microsoft.Web/sites@2023-12-01' = {
 }
 
 // API Management
-resource apim 'Microsoft.ApiManagement/service@2023-05-01-preview' = {
+resource apim 'Microsoft.ApiManagement/service@2022-08-01' = {
   name: apimName
   location: location
   sku: {
-    name: 'Consumption'
-    capacity: 0
+    name: customerApimSkuName
+    capacity: (customerApimSkuName == 'Consumption' ? 0 : 1)
   }
   properties: {
     publisherEmail: apimPublisherEmail
@@ -259,8 +282,48 @@ resource apim 'Microsoft.ApiManagement/service@2023-05-01-preview' = {
   tags: commonTags
 }
 
+// Virtual Network for internal Admin APIM (Option A)
+resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' = {
+  name: vnetName
+  location: location
+  properties: {
+    addressSpace: {
+      addressPrefixes: [ vnetAddressSpace ]
+    }
+    subnets: [
+      {
+        name: adminApimSubnetName
+        properties: {
+          addressPrefix: adminApimSubnetPrefix
+        }
+      }
+    ]
+  }
+  tags: commonTags
+}
+
+// Internal Admin APIM instance (ingress restricted to private network/VPN)
+resource adminApim 'Microsoft.ApiManagement/service@2022-08-01' = {
+  name: adminApimName
+  location: location
+  sku: {
+    name: adminApimSkuName
+    capacity: adminApimSkuCapacity
+  }
+  properties: {
+    publisherEmail: apimPublisherEmail
+    publisherName: apimPublisherName
+    virtualNetworkType: 'Internal'
+    virtualNetworkConfiguration: {
+      subnetResourceId: adminApimSubnetId
+    }
+  }
+  tags: commonTags
+  dependsOn: [ vnet ]
+}
+
 // Customer API
-resource apimApi 'Microsoft.ApiManagement/service/apis@2023-05-01-preview' = {
+resource apimApi 'Microsoft.ApiManagement/service/apis@2022-08-01' = {
   name: 'customer-api'
   parent: apim
   properties: {
@@ -268,6 +331,54 @@ resource apimApi 'Microsoft.ApiManagement/service/apis@2023-05-01-preview' = {
     displayName: 'Customer Service API'
     protocols: [ 'https' ]
     serviceUrl: 'https://${func.name}.azurewebsites.net/api'
+  }
+}
+
+// Admin API (internal) - shares same Function backend; NOTE: function remains public; consider separate app or private endpoint for stricter isolation.
+resource adminApimApi 'Microsoft.ApiManagement/service/apis@2022-08-01' = {
+  name: 'admin-api'
+  parent: adminApim
+  properties: {
+    path: 'admin'
+    displayName: 'Customer Admin API'
+    protocols: [ 'https' ]
+    serviceUrl: 'https://${func.name}.azurewebsites.net/api'
+  }
+}
+
+resource adminOpGet 'Microsoft.ApiManagement/service/apis/operations@2022-08-01' = {
+  name: 'adminGetCustomer'
+  parent: adminApimApi
+  properties: {
+    displayName: 'Get Customer (Admin)'
+    method: 'GET'
+    urlTemplate: '/admin/customers/{id}'
+    templateParameters: [
+      {
+        name: 'id'
+        required: true
+        type: 'string'
+      }
+    ]
+    responses: []
+  }
+}
+
+resource adminOpUpdate 'Microsoft.ApiManagement/service/apis/operations@2022-08-01' = {
+  name: 'adminUpdateCustomer'
+  parent: adminApimApi
+  properties: {
+    displayName: 'Update Customer (Admin)'
+    method: 'PATCH'
+    urlTemplate: '/admin/customers/{id}'
+    templateParameters: [
+      {
+        name: 'id'
+        required: true
+        type: 'string'
+      }
+    ]
+    responses: []
   }
 }
 
@@ -309,7 +420,7 @@ resource opMe 'Microsoft.ApiManagement/service/apis/operations@2023-05-01-previe
 }
 
 // Custom domain mapping for APIM (requires existing certificate in Key Vault or resource) - simplified
-resource apimHostname 'Microsoft.ApiManagement/service/hostnameConfigurations@2023-05-01-preview' = {
+resource apimHostname 'Microsoft.ApiManagement/service/hostnameConfigurations@2022-08-01' = {
   name: 'proxy'
   parent: apim
   properties: {
@@ -323,7 +434,9 @@ resource apimHostname 'Microsoft.ApiManagement/service/hostnameConfigurations@20
 // Outputs
 output functionAppName string = func.name
 output apimName string = apim.name
+output adminApimName string = adminApim.name
 output customerApiId string = apimApi.name
+output adminApiId string = adminApimApi.name
 output keyVaultName string = kv.name
 output containerRegistryName string = acr.name
 output cosmosAccountName string = cosmos.name

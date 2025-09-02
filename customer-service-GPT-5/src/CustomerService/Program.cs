@@ -22,6 +22,8 @@ var host = new HostBuilder()
         services.AddSingleton<ICustomerRepository, CosmosCustomerRepository>();
         services.AddSingleton<IRefreshTokenRepository, CosmosRefreshTokenRepository>();
         services.AddSingleton<TokenService>();
+    services.AddSingleton<CustomerService.Services.IClaimsMappingService, CustomerService.Services.ClaimsMappingService>();
+    services.AddSingleton<CustomerService.Services.IAuthorizationService, CustomerService.Services.AuthorizationService>();
     })
     .ConfigureFunctionsWorkerDefaults()
     .Build();
