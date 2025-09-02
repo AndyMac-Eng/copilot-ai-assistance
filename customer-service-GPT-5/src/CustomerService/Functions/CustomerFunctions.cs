@@ -128,7 +128,59 @@ public class CustomerFunctions
         var account = await _repo.GetByIdAsync(tenantId, sub);
         if (account == null) return await Problem(req, HttpStatusCode.NotFound, "Not found");
         var resp = req.CreateResponse(HttpStatusCode.OK);
-        await resp.WriteAsJsonAsync(new { account.Id, account.Email, account.DisplayName, account.CreatedUtc, account.LastLoginUtc });
+        await resp.WriteAsJsonAsync(new {
+            account.Id,
+            account.Email,
+            account.DisplayName,
+            account.DateOfBirth,
+            account.ResidentialAddress,
+            account.MobilePhone,
+            ThemeMode = account.Preferences.ThemeMode,
+            account.CreatedUtc,
+            account.LastLoginUtc
+        });
+        return resp;
+    }
+
+    [Function("UpdateMe")] // PATCH /api/customers/me
+    public async Task<HttpResponseData> UpdateMe([HttpTrigger(AuthorizationLevel.Anonymous, "patch", Route = "customers/me")] HttpRequestData req)
+    {
+        if (!req.Headers.TryGetValues("Authorization", out var authHeaders))
+            return await Problem(req, HttpStatusCode.Unauthorized, "Missing token");
+        var token = authHeaders.First().Split(' ', 2, StringSplitOptions.RemoveEmptyEntries).Last();
+        var handler = new JwtSecurityTokenHandler();
+        var jwt = handler.ReadJwtToken(token);
+        var sub = jwt.Subject;
+        var tenantId = jwt.Claims.FirstOrDefault(c => c.Type == "tid")?.Value ?? "default";
+        var account = await _repo.GetByIdAsync(tenantId, sub);
+        if (account == null) return await Problem(req, HttpStatusCode.NotFound, "Not found");
+        var payload = await JsonSerializer.DeserializeAsync<UpdateMeRequest>(req.Body, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        if (payload == null) return await Problem(req, HttpStatusCode.BadRequest, "Invalid payload");
+        // Basic validation
+        if (payload.ThemeMode != null && payload.ThemeMode is not ("light" or "dark"))
+            return await Problem(req, HttpStatusCode.BadRequest, "themeMode must be 'light' or 'dark'");
+
+        var updated = account with
+        {
+            DisplayName = payload.DisplayName ?? account.DisplayName,
+            DateOfBirth = payload.DateOfBirth ?? account.DateOfBirth,
+            ResidentialAddress = payload.ResidentialAddress ?? account.ResidentialAddress,
+            MobilePhone = payload.MobilePhone ?? account.MobilePhone,
+            Preferences = (payload.ThemeMode == null) ? account.Preferences : account.Preferences with { ThemeMode = payload.ThemeMode },
+            Audit = account.Audit with { UpdatedUtc = DateTimeOffset.UtcNow, UpdatedBy = account.Id }
+        };
+        await _repo.UpdateAsync(updated);
+        var resp = req.CreateResponse(HttpStatusCode.OK);
+        await resp.WriteAsJsonAsync(new {
+            updated.Id,
+            updated.Email,
+            updated.DisplayName,
+            updated.DateOfBirth,
+            updated.ResidentialAddress,
+            updated.MobilePhone,
+            ThemeMode = updated.Preferences.ThemeMode,
+            updated.Audit.UpdatedUtc
+        });
         return resp;
     }
 
@@ -143,4 +195,5 @@ public class CustomerFunctions
     private record LoginRequest(string Email, string Password);
     private record RefreshRequest(string RefreshToken);
     private record MfaVerifyRequest(string Secret, string Code);
+    private record UpdateMeRequest(string? DisplayName, DateTime? DateOfBirth, string? ResidentialAddress, string? MobilePhone, string? ThemeMode);
 }

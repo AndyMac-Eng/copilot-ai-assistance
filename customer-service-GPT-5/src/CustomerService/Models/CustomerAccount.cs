@@ -8,6 +8,9 @@ public record CustomerAccount
     public string NormalizedEmail => Email.ToLowerInvariant();
     public string PasswordHash { get; init; } = string.Empty; // BCrypt hashed
     public string? DisplayName { get; init; }
+    public DateTime? DateOfBirth { get; init; } // date component used
+    public string? ResidentialAddress { get; init; }
+    public string? MobilePhone { get; init; }
     public DateTimeOffset CreatedUtc { get; init; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? LastLoginUtc { get; init; }
     public bool IsLocked { get; init; } = false;
@@ -34,6 +37,7 @@ public record CustomerAccountPreferences
     public string Locale { get; init; } = "en-US";
     public string TimeZone { get; init; } = "UTC";
     public bool MarketingOptIn { get; init; } = false;
+    public string ThemeMode { get; init; } = "light"; // light | dark
 }
 
 public record AuditMetadata
