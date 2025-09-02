@@ -19,13 +19,17 @@ var host = new HostBuilder()
     {
         services.AddApplicationInsightsTelemetryWorkerService();
         services.AddLogging(lb => lb.AddSerilog());
-        services.AddSingleton<ICustomerRepository, CosmosCustomerRepository>();
+    services.AddSingleton<ICustomerRepository, CosmosCustomerRepository>();
         services.AddSingleton<IRefreshTokenRepository, CosmosRefreshTokenRepository>();
         services.AddSingleton<TokenService>();
     services.AddSingleton<CustomerService.Services.IClaimsMappingService, CustomerService.Services.ClaimsMappingService>();
     services.AddSingleton<CustomerService.Services.IAuthorizationService, CustomerService.Services.AuthorizationService>();
+    services.AddSingleton<CustomerService.Services.IPermissionPolicyRegistry, CustomerService.Services.PermissionPolicyRegistry>();
     })
-    .ConfigureFunctionsWorkerDefaults()
+    .ConfigureFunctionsWorkerDefaults(builder =>
+    {
+        builder.UseMiddleware<CustomerService.Services.AuthorizationMiddleware>();
+    })
     .Build();
 
 Log.Logger = new LoggerConfiguration()

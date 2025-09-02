@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using System.IdentityModel.Tokens.Jwt;
 using OtpNet;
 using System.Security.Cryptography;
+using CustomerService.Services; // for auth attributes & extensions
 
 namespace CustomerService.Functions;
 
@@ -115,17 +116,11 @@ public class CustomerFunctions
     }
 
     [Function("GetMe")] // GET /api/customers/me
-    public async Task<HttpResponseData> GetMe([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "customers/me")] HttpRequestData req)
+    [RequireAuthentication]
+    [LoadCustomerAccount]
+    public async Task<HttpResponseData> GetMe([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "customers/me")] HttpRequestData req, FunctionContext ctx)
     {
-        // In production, validate JWT (API Mgmt or Function middleware). Here we parse Authorization header for brevity.
-        if (!req.Headers.TryGetValues("Authorization", out var authHeaders))
-            return await Problem(req, HttpStatusCode.Unauthorized, "Missing token");
-        var token = authHeaders.First().Split(' ', 2, StringSplitOptions.RemoveEmptyEntries).Last();
-        var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
-        var jwt = handler.ReadJwtToken(token);
-        var sub = jwt.Subject;
-        var tenantId = jwt.Claims.FirstOrDefault(c => c.Type == "tid")?.Value ?? "default";
-        var account = await _repo.GetByIdAsync(tenantId, sub);
+        var account = ctx.GetCustomerAccount();
         if (account == null) return await Problem(req, HttpStatusCode.NotFound, "Not found");
         var resp = req.CreateResponse(HttpStatusCode.OK);
         await resp.WriteAsJsonAsync(new {
@@ -142,17 +137,12 @@ public class CustomerFunctions
         return resp;
     }
 
-    [Function("UpdateMe")] // PATCH /api/customers/me
-    public async Task<HttpResponseData> UpdateMe([HttpTrigger(AuthorizationLevel.Anonymous, "patch", Route = "customers/me")] HttpRequestData req)
+    [Function("UpdateMe")] // PATCH /api/customers/me    
+    [RequireAuthentication]
+    [LoadCustomerAccount]
+    public async Task<HttpResponseData> UpdateMe([HttpTrigger(AuthorizationLevel.Anonymous, "patch", Route = "customers/me")] HttpRequestData req, FunctionContext ctx)
     {
-        if (!req.Headers.TryGetValues("Authorization", out var authHeaders))
-            return await Problem(req, HttpStatusCode.Unauthorized, "Missing token");
-        var token = authHeaders.First().Split(' ', 2, StringSplitOptions.RemoveEmptyEntries).Last();
-        var handler = new JwtSecurityTokenHandler();
-        var jwt = handler.ReadJwtToken(token);
-        var sub = jwt.Subject;
-        var tenantId = jwt.Claims.FirstOrDefault(c => c.Type == "tid")?.Value ?? "default";
-        var account = await _repo.GetByIdAsync(tenantId, sub);
+        var account = ctx.GetCustomerAccount();
         if (account == null) return await Problem(req, HttpStatusCode.NotFound, "Not found");
         var payload = await JsonSerializer.DeserializeAsync<UpdateMeRequest>(req.Body, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
         if (payload == null) return await Problem(req, HttpStatusCode.BadRequest, "Invalid payload");
@@ -171,7 +161,8 @@ public class CustomerFunctions
         };
         await _repo.UpdateAsync(updated);
         var resp = req.CreateResponse(HttpStatusCode.OK);
-        await resp.WriteAsJsonAsync(new {
+        await resp.WriteAsJsonAsync(new
+        {
             updated.Id,
             updated.Email,
             updated.DisplayName,
